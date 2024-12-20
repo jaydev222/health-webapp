@@ -4,7 +4,7 @@ const fs = require('fs-extra');
 const { exec } = require('child_process');
 const path = require('path');
 
-// Helper to execute shell commands
+// Helper function to run shell commands
 const runCommand = (cmd) =>
   new Promise((resolve, reject) => {
     exec(cmd, (error, stdout, stderr) => {
@@ -16,58 +16,27 @@ const runCommand = (cmd) =>
     });
   });
 
-// Step 1: Create missing files and configurations
-const createMissingFiles = async () => {
+// Step 1: Create required configurations
+const createConfigFiles = async () => {
   const files = {
     '.env.local': `DATABASE_URL=mongodb+srv://<username>:<password>@cluster0.mongodb.net/healthapp
 NEXTAUTH_SECRET=your-secret-key
 NEXT_PUBLIC_API_URL=http://localhost:3000/api`,
-    'pages/api/health.js': `export default function handler(req, res) {
-  if (req.method === 'GET') {
-    res.status(200).json({
-      userId: 1,
-      healthMetrics: {
-        steps: 5000,
-        calories: 1200,
-        sleepHours: 7,
-      },
-    });
-  } else {
-    res.status(405).json({ message: 'Method Not Allowed' });
-  }
-};`,
-    'components/TaskManager.js': `import React, { useState } from 'react';
-
-export default function TaskManager() {
-  const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState('');
-
-  const addTask = () => {
-    if (newTask) setTasks([...tasks, newTask]);
-    setNewTask('');
-  };
-
-  const deleteTask = (index) => {
-    setTasks(tasks.filter((_, i) => i !== index));
-  };
-
+    'next.config.js': `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  env: {
+    DATABASE_URL: process.env.DATABASE_URL,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  },
+};
+module.exports = nextConfig;`,
+    'pages/index.js': `export default function Home() {
   return (
     <div>
-      <h1>Task Manager</h1>
-      <input
-        type="text"
-        value={newTask}
-        onChange={(e) => setNewTask(e.target.value)}
-        placeholder="Add a new task"
-      />
-      <button onClick={addTask}>Add Task</button>
-      <ul>
-        {tasks.map((task, index) => (
-          <li key={index}>
-            {task} <button onClick={() => deleteTask(index)}>Delete</button>
-          </li>
-        ))}
-      </ul>
+      <h1>Welcome to Health Webapp</h1>
+      <p>This is the landing page.</p>
     </div>
   );
 };`
@@ -78,14 +47,22 @@ export default function TaskManager() {
     const fullPath = path.join(process.cwd(), filePath);
     await fs.outputFile(fullPath, content);
   }
-  console.log('Missing files created successfully.');
+
+  // Ensure required folders exist
+  const directories = ['pages/api', 'components', 'public'];
+  for (const dir of directories) {
+    console.log(`Ensuring directory exists: ${dir}`);
+    await fs.ensureDir(path.join(process.cwd(), dir));
+  }
+
+  console.log('Configurations and starter files created.');
 };
 
 // Step 2: Install dependencies
 const installDependencies = async () => {
   console.log('Installing dependencies...');
   try {
-    await runCommand('npm install');
+    await runCommand('npm install next react react-dom');
     console.log('Dependencies installed successfully.');
   } catch (error) {
     console.error(`Error installing dependencies: ${error.message}`);
@@ -93,21 +70,27 @@ const installDependencies = async () => {
   }
 };
 
-// Main execution flow
-const setupHealthWebApp = async () => {
-  console.log('Setting up health-webapp...');
-  
-  // Change working directory to the cloned repository
+// Step 3: Run dev server
+const runDevServer = async () => {
+  console.log('Starting development server...');
   try {
-    process.chdir(path.resolve('health-webapp'));
-  } catch (err) {
-    console.error('Please ensure you have cloned the repository to `health-webapp` directory.');
-    return;
+    await runCommand('npm run dev');
+  } catch (error) {
+    console.error(`Error starting development server: ${error.message}`);
   }
-
-  await createMissingFiles();
-  await installDependencies();
-  console.log('Setup complete. You can now run the development server with `npm run dev`.');
 };
 
-setupHealthWebApp();
+// Main flow
+const setupAndRun = async () => {
+  console.log('Setting up health-webapp...');
+  try {
+    await createConfigFiles();
+    await installDependencies();
+    console.log('Setup complete. Starting the development server...');
+    await runDevServer();
+  } catch (error) {
+    console.error(`Setup failed: ${error.message}`);
+  }
+};
+
+setupAndRun();
